@@ -2,6 +2,11 @@ import socket, re, time, json, argparse, os
 from types import SimpleNamespace
 from decouple import config
 
+class DefaultUser(Exception):
+	"""Raised when you try send a message with the default user"""
+	pass
+
+
 class TwitchChatIRC():
 	__HOST = 'irc.chat.twitch.tv'
 	__DEFAULT_NICK = 'justinfan67420'
@@ -31,11 +36,11 @@ class TwitchChatIRC():
 		print('Connected to',self.__HOST,'on port',self.__PORT)
 
 		# log in
-		self.__send_string('CAP REQ :twitch.tv/tags')
-		self.__send_string('PASS ' + self.__PASS)
-		self.__send_string('NICK ' + self.__NICK)
+		self.__send_raw('CAP REQ :twitch.tv/tags')
+		self.__send_raw('PASS ' + self.__PASS)
+		self.__send_raw('NICK ' + self.__NICK)
 	
-	def __send_string(self, string):
+	def __send_raw(self, string):
 		self.__SOCKET.send((string+'\r\n').encode('ISO-8859-1'))
 
 	def __print_message(self, message):
@@ -54,7 +59,7 @@ class TwitchChatIRC():
 		channel_lower = channel_name.lower()
 
 		if(self.__CURRENT_CHANNEL != channel_lower):
-			self.__send_string('JOIN #{}'.format(channel_lower))
+			self.__send_raw('JOIN #{}'.format(channel_lower))
 			self.__CURRENT_CHANNEL = channel_lower
 
 	def listen(self, channel_name, messages = [], timeout=None, message_timeout=1.0, on_message = None, buffer_size = 4096, message_limit = None, output=None):
@@ -73,9 +78,9 @@ class TwitchChatIRC():
 				try:
 					new_info = self.__recvall(buffer_size)
 					readbuffer += new_info
-
+					
 					if('PING :tmi.twitch.tv' in readbuffer):
-						self.__send_string('PONG :tmi.twitch.tv')
+						self.__send_raw('PONG :tmi.twitch.tv')
 
 					matches = list(self.__PATTERN.finditer(readbuffer))
 
@@ -83,7 +88,7 @@ class TwitchChatIRC():
 						time_since_last_message = 0
 
 						if(len(matches) > 1):
-							matches = matches[:-1] # assume last one is not complete
+							matches = matches[:-1] # assume last one is incomplete
 
 						last_index = matches[-1].span()[1]
 						readbuffer = readbuffer[last_index:]
@@ -126,14 +131,17 @@ class TwitchChatIRC():
 
 		return messages
 
+	def is_default_user(self):
+		return self.__NICK == self.__DEFAULT_NICK
+
 	def send(self, channel_name, message):
 		self.__join_channel(channel_name)
-
+ 
 		# check that is using custom login, not default
-		if(self.__NICK == self.__DEFAULT_NICK):
-			raise Exception('Unable to send messages with default user.')
+		if(self.is_default_user()):
+			raise DefaultUser
 		else:
-			self.__send_string('PRIVMSG #{} :{}'.format(self.__NICK.lower(),message))
+			self.__send_raw('PRIVMSG #{} :{}'.format(channel_name.lower(),message))
 			print('Sent "{}" to {}'.format(message,channel_name))
 
 
@@ -153,15 +161,24 @@ if __name__ == '__main__':
 	parser.add_argument('-output','-o', default=None, help='output file (default: None = print to standard output)')
 
 	args = parser.parse_args()
-
+	
 	twitch_chat_irc = TwitchChatIRC(username=args.username,password=args.password)
 
 	if(args.send):
-		while True:
-			message = input('>>> Enter message (blank to exit): ')
-			if(not message):
-				break
-			twitch_chat_irc.send(args.channel_name, message)
+		if(twitch_chat_irc.is_default_user()):
+			print('Unable to send messages with default user. Please provide valid authentication.')
+		else:
+			try:
+				while True:
+					message = input('>>> Enter message (blank to exit): \n')
+					if(not message):
+						break
+					twitch_chat_irc.send(args.channel_name, message)
+			except KeyboardInterrupt:
+				print('\nInterrupted by user.')
+
+			print('Connection closed')
+
 	else:
 		messages = twitch_chat_irc.listen(
 			args.channel_name,
