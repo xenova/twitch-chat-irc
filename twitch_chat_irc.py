@@ -5,6 +5,10 @@ class DefaultUser(Exception):
 	"""Raised when you try send a message with the default user"""
 	pass
 
+class CallbackFunction(Exception):
+	"""Raised when the callback function does not have (only) one required positional argument"""
+	pass
+
 class TwitchChatIRC():
 	__HOST = 'irc.chat.twitch.tv'
 	__DEFAULT_NICK = 'justinfan67420'
@@ -110,7 +114,7 @@ class TwitchChatIRC():
 							if(callable(on_message)):
 								try:
 									on_message(data)
-								except:
+								except TypeError:
 									raise Exception('Incorrect number of parameters for function '+on_message.__name__)
 							
 							if(message_limit is not None and len(messages) >= message_limit):
