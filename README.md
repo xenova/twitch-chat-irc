@@ -1,12 +1,15 @@
 # Twitch Chat IRC
 A simple tool used to send and receive Twitch chat messages over IRC with python web sockets. Receiving does not require authentication, while sending does.
 
+
+
+
+## Setup
 ### Requirements:
 * This tool was created in a Python 3 environment.
 * Run `pip install -r requirements.txt` to ensure you have the necessary dependencies.
 
-
-### Set up
+### Authentication
 If you intend to send messages, you will require authentication.
 1. Go to https://twitchapps.com/tmi/
 2. Click "Connect".
@@ -20,8 +23,8 @@ If you intend to send messages, you will require authentication.
 	- Pass your credentials as function/command line arguments. See below for examples.
 
 
-### Command line:
-#### Usage
+## Command line:
+### Usage
 ```
 usage: twitch_chat_irc.py [-h] [-timeout TIMEOUT]
                           [-message_timeout MESSAGE_TIMEOUT]
@@ -59,7 +62,8 @@ optional arguments:
                         output file (default: None = print to standard output)
 ```
 
-#### Examples
+### Examples
+#### Receiving messages
 ##### 1. Output messages from a livestream to standard output
 ```
 python twitch_chat_irc.py <channel_name>
@@ -85,75 +89,102 @@ There are other options, such as `message_timeout` and `buffer_size`, but these 
 python twitch_chat_irc.py <channel_name> -message_limit <number_of_messages> -output <file_name>
 ```
 
-##### 5. Send messages to a channel (authentication via .env)
-```
-python twitch_chat_irc.py --send <channel_name>
-```
-
-##### 6. Send messages to a channel (authentication via arguments)
-```
-python twitch_chat_irc.py --send <channel_name> -username <username> -oauth <oauth_token>
-```
 
 #### Example outputs
 [JSON Example](examples/example.json):
 ```
-python chat_replay_downloader.py https://www.youtube.com/watch?v=pMsvr55cTZ0 -start_time 14400 -end_time 15000 -output example.json
+python twitch_chat_irc.py <channel_name> -output example.json
 ```
 
 [CSV Example](examples/example.csv):
 ```
-python chat_replay_downloader.py https://www.youtube.com/watch?v=pMsvr55cTZ0 -start_time 14400 -end_time 15000 -output example.csv
+python twitch_chat_irc.py <channel_name> -output example.csv
 ```
 
 [Text Example](examples/example.txt):
 ```
-python chat_replay_downloader.py https://www.youtube.com/watch?v=pMsvr55cTZ0 -start_time 14400 -end_time 15000 -output example.txt
+python twitch_chat_irc.py <channel_name> -output example.txt
 ```
 
-### Python module
 
-#### Importing the module
-
-```python
-import chat_replay_downloader
+#### Sending messages
+This will open an interactive session which allows you to send messages to the specified channel.
+##### 1. Send messages to a channel (authentication via .env)
 ```
-or
-
-```python
-from chat_replay_downloader import get_chat_replay, get_youtube_messages, get_twitch_messages
-```
-The following examples will use the second form of importing.
-
-#### Examples
-##### 1. Return list of all chat messages, given a video url:
-```python
-youtube_messages = get_chat_replay('https://www.youtube.com/watch?v=xxxxxxxxxxx')
-twitch_messages = get_chat_replay('https://www.twitch.tv/videos/xxxxxxxxx')
+python twitch_chat_irc.py --send <channel_name>
 ```
 
-##### 2. Return list of all chat messages, given a video id
-```python
-youtube_messages = get_youtube_messages('xxxxxxxxxxx')
-twitch_messages = get_twitch_messages('xxxxxxxxx')
+##### 2. Send messages to a channel (authentication via arguments)
 ```
-<br/>
+python twitch_chat_irc.py --send <channel_name> -username <username> -oauth <oauth_token>
+```
+<br>
 
-The following examples use parameters which all three methods (`get_chat_replay`, `get_youtube_messages`, `get_twitch_messages`) have. Both of the following parameters are optional:
-* `start_time`: start time in seconds or hh:mm:ss (Default is 0, which is the start of the video)
-* `end_time`: end time in seconds or hh:mm:ss (Default is None, which means it will continue until the video ends)
+## Python module
 
-##### 3. Return list of chat messages, starting at a certain time (in seconds or hh:mm:ss)
+### Importing the module
+
 ```python
-messages = get_chat_replay('video_url', start_time = 60) # Start at 60 seconds and continue until the end
+import twitch_chat_irc
 ```
 
-##### 4. Return list of chat messages, ending at a certain time (in seconds or hh:mm:ss)
+### Examples
+#### Starting a connection
+This allows for both receiving and sending of messages
+##### 1. Start a connection with Twitch chat using credentials in `.env` (if any)
+
 ```python
-messages = get_chat_replay('video_url', end_time = 60) # Start at 0 seconds (beginning) and end at 60 seconds
+connection = twitch_chat_irc.TwitchChatIRC()
+```
+##### 2. Start a connection with Twitch chat using credentials
+
+```python
+connection = twitch_chat_irc.TwitchChatIRC('username','oauth:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx')
+```
+#### Receiving messages
+The `listen` method returns a list when a `KeyboardInterrupt` is fired, or when a timeout/limit has been reached. The arguments shown below can be used together to form more complex method calls.
+
+##### 1. Get a list of messages from a channel
+```python
+messages = connection.listen('channel_name')
 ```
 
-##### 5. Return list of chat messages, starting and ending at certain times (in seconds or hh:mm:ss)
+##### 2. Get a list of messages from a channel, stopping after not getting a message for 30 seconds
 ```python
-messages = get_chat_replay('video_url', start_time = 60, end_time = 120) # Start at 60 seconds and end at 120 seconds
+messages = connection.listen('channel_name', timeout=30)
+```
+
+##### 3. Get a list of messages from a channel, stopping after getting 100 messages
+```python
+messages = connection.listen('channel_name', message_limit=100)
+```
+
+##### 4. Write messages from a channel to a file
+```python
+connection.listen('channel_name', output='file.txt')
+```
+
+##### 5. Set a callback function to be fired each time a message is received
+```python
+def do_something(message):
+	print(message)
+
+connection.listen('channel_name', on_message=do_something)
+```
+
+#### Sending messages
+The `send` method allows for messages to be sent to different channels. This method requires valid authentication to be provided, otherwise an exception will be called.
+
+##### 1. Send a message
+```python
+message = 'Hello world!'
+connection.send('channel_name', message)
+```
+
+#### Close connection
+The `close_connection` method closes the connection with Twitch chat. No futher messages can be received or sent now.
+
+##### 1. Close a connection
+```python
+connection.close()
 ```

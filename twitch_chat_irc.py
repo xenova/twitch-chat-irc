@@ -60,6 +60,13 @@ class TwitchChatIRC():
 			self.__send_raw('JOIN #{}'.format(channel_lower))
 			self.__CURRENT_CHANNEL = channel_lower
 
+	def is_default_user(self):
+		return self.__NICK == self.__DEFAULT_NICK
+
+	def close_connection(self):
+		self.__SOCKET.close()
+		print('Connection closed')
+
 	def listen(self, channel_name, messages = [], timeout=None, message_timeout=1.0, on_message = None, buffer_size = 4096, message_limit = None, output=None):
 		self.__join_channel(channel_name)
 		self.__SOCKET.settimeout(message_timeout)
@@ -123,14 +130,8 @@ class TwitchChatIRC():
 		except Exception as e:
 			print('Unknown Error:',e)
 			raise e		
-
-		self.__SOCKET.close()
-		print('Connection closed')
-
+		
 		return messages
-
-	def is_default_user(self):
-		return self.__NICK == self.__DEFAULT_NICK
 
 	def send(self, channel_name, message):
 		self.__join_channel(channel_name)
@@ -175,8 +176,6 @@ if __name__ == '__main__':
 			except KeyboardInterrupt:
 				print('\nInterrupted by user.')
 
-			print('Connection closed')
-
 	else:
 		messages = twitch_chat_irc.listen(
 			args.channel_name,
@@ -184,7 +183,6 @@ if __name__ == '__main__':
 			message_timeout=args.message_timeout,
 			buffer_size=args.buffer_size,
 			message_limit=args.message_limit)
-
 
 		if(args.output != None):
 			if(args.output.endswith('.json')):
@@ -207,3 +205,5 @@ if __name__ == '__main__':
 				f.close()
 
 			print('Finished writing',len(messages),'messages to',args.output)
+		
+	twitch_chat_irc.close_connection()
