@@ -118,7 +118,6 @@ python twitch_chat_irc.py --send <channel_name>
 ```
 python twitch_chat_irc.py --send <channel_name> -username <username> -oauth <oauth_token>
 ```
-<br>
 
 ## Python module
 
