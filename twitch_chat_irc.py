@@ -1,11 +1,9 @@
-import socket, re, time, json, argparse, os
-from types import SimpleNamespace
+import socket, re, json, argparse, emoji, csv
 from decouple import config
 
 class DefaultUser(Exception):
 	"""Raised when you try send a message with the default user"""
 	pass
-
 
 class TwitchChatIRC():
 	__HOST = 'irc.chat.twitch.tv'
@@ -26,7 +24,7 @@ class TwitchChatIRC():
 		if(username is not None):
 			self.__NICK = username
 		if(password is not None):
-			self.__PASS = password
+			self.__PASS = 'oauth:'+str(password).lstrip('oauth:')
 		
 		# create new socket
 		self.__SOCKET = socket.socket()
@@ -41,10 +39,10 @@ class TwitchChatIRC():
 		self.__send_raw('NICK ' + self.__NICK)
 	
 	def __send_raw(self, string):
-		self.__SOCKET.send((string+'\r\n').encode('ISO-8859-1'))
+		self.__SOCKET.send((string+'\r\n').encode('utf-8'))
 
 	def __print_message(self, message):
-		print('['+message['tmi-sent-ts']+']',message['display-name']+':',message['message'])
+		print('['+message['tmi-sent-ts']+']',message['display-name']+':',emoji.demojize(message['message']).encode('utf-8').decode('utf-8','ignore'))
 
 	def __recvall(self, buffer_size):
 		data = b''
@@ -53,7 +51,7 @@ class TwitchChatIRC():
 			data += part
 			if len(part) < buffer_size:
 				break
-		return data.decode('ISO-8859-1')
+		return data.decode('utf-8')#,'ignore'
 
 	def __join_channel(self,channel_name):
 		channel_lower = channel_name.lower()
@@ -146,7 +144,7 @@ class TwitchChatIRC():
 
 
 if __name__ == '__main__':
-	parser = argparse.ArgumentParser(description='Send and receive twitch chat messages using IRC. For more info, go to https://dev.twitch.tv/docs/irc/guide')
+	parser = argparse.ArgumentParser(description='Send and receive Twitch chat messages over IRC with python web sockets. For more info, go to https://dev.twitch.tv/docs/irc/guide')
 
 	parser.add_argument('channel_name', help='Twitch channel name (username)')
 	parser.add_argument('-timeout','-t', default=None, type=float, help='time in seconds needed to close connection after not receiving any new data (default: None = no timeout)')
@@ -155,14 +153,14 @@ if __name__ == '__main__':
 	parser.add_argument('-message_limit','-l', default=None, type=int, help='maximum amount of messages to get (default: None = unlimited)')
 	
 	parser.add_argument('-username','-u', default=None, help='username (default: None)')
-	parser.add_argument('-password','-p','-oauth', default=None, help='oath token (default: None). Get custom one from https://twitchapps.com/tmi/')
+	parser.add_argument('-oauth', '-password','-p', default=None, help='oath token (default: None). Get custom one from https://twitchapps.com/tmi/')
 	
 	parser.add_argument('--send', action='store_true', help='send mode (default: False)')
 	parser.add_argument('-output','-o', default=None, help='output file (default: None = print to standard output)')
 
 	args = parser.parse_args()
 	
-	twitch_chat_irc = TwitchChatIRC(username=args.username,password=args.password)
+	twitch_chat_irc = TwitchChatIRC(username=args.username,password=args.oauth)
 
 	if(args.send):
 		if(twitch_chat_irc.is_default_user()):
@@ -187,12 +185,23 @@ if __name__ == '__main__':
 			buffer_size=args.buffer_size,
 			message_limit=args.message_limit)
 
+
 		if(args.output != None):
 			if(args.output.endswith('.json')):
 				with open(args.output, 'w') as fp:
 					json.dump(messages, fp)
+			elif(args.output.endswith('.csv')):
+				with open(args.output, 'w', newline='',encoding='utf-8') as fp:
+					fieldnames = []
+					for message in messages:
+						fieldnames+=message.keys()
+
+					if(len(messages)>0):
+						fc = csv.DictWriter(fp,fieldnames=list(set(fieldnames)))
+						fc.writeheader()
+						fc.writerows(messages)
 			else:
-				f = open(args.output,'w', encoding='ISO-8859-1')
+				f = open(args.output,'w', encoding='utf-8')
 				for message in messages:
 					print('['+message['tmi-sent-ts']+']',message['display-name']+':',message['message'],file=f)
 				f.close()
