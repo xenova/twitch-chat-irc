@@ -185,5 +185,5 @@ The `close_connection` method closes the connection with Twitch chat. No futher 
 
 ##### 1. Close a connection
 ```python
-connection.close()
+connection.close_connection()
 ```
